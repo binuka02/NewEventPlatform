@@ -1,0 +1,72 @@
+# Allow frontend to only talk to analytics collector
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-network-policy
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: analytics
+    ports:
+    - protocol: TCP
+      port: 3004
+---
+# Allow registration service to only talk to event service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registration-network-policy
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: registration-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: frontend
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: event-service
+    ports:
+    - protocol: TCP
+      port: 3001
+---
+# Allow all services to talk to RDS (port 5432)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-rds-egress
+  namespace: production
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - ports:
+    - protocol: TCP
+      port: 5432
+  - ports:
+    - protocol: TCP
+      port: 443
+  - ports:
+    - protocol: TCP
+      port: 53
+    protocol: UDP
+  - ports:
+    - protocol: UDP
+      port: 53
