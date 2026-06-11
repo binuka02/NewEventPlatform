@@ -1,0 +1,67 @@
+# Blue Deployment (current live version)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-blue
+  namespace: production
+  labels:
+    app: frontend
+    version: blue
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: frontend
+        version: blue
+    spec:
+      containers:
+      - name: frontend
+        image: YOUR_DOCKERHUB_USERNAME/new-event-frontend:v1
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+---
+# Green Deployment (new version - inactive initially)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-green
+  namespace: production
+  labels:
+    app: frontend
+    version: green
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: frontend
+      version: green
+  template:
+    metadata:
+      labels:
+        app: frontend
+        version: green
+    spec:
+      containers:
+      - name: frontend
+        image: YOUR_DOCKERHUB_USERNAME/new-event-frontend:v2
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
