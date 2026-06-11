@@ -1,0 +1,52 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: new-event-ingress
+  namespace: production
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /api/events
+        pathType: Prefix
+        backend:
+          service:
+            name: event-service
+            port:
+              number: 3001
+      - path: /api/programs
+        pathType: Prefix
+        backend:
+          service:
+            name: program-service
+            port:
+              number: 3002
+      - path: /api/register
+        pathType: Prefix
+        backend:
+          service:
+            name: registration-service
+            port:
+              number: 3003
+      - path: /api/analytics
+        pathType: Prefix
+        backend:
+          service:
+            name: analytics-collector-service
+            port:
+              number: 3004
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 80

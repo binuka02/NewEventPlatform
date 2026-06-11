@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-collector
+  namespace: analytics
+  labels:
+    app: analytics-collector
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: analytics-collector
+  template:
+    metadata:
+      labels:
+        app: analytics-collector
+    spec:
+      containers:
+      - name: analytics-collector
+        image: binukx/analytics-collector:v1
+        ports:
+        - containerPort: 3004
+        env:
+        - name: CLICKHOUSE_HOST
+          value: "http://clickhouse-service:8123"
+        - name: CLICKHOUSE_USER
+          value: "default"
+        - name: CLICKHOUSE_PASSWORD
+          value: ""
+        - name: CLICKHOUSE_DB
+          value: "analytics"
+        - name: PORT
+          value: "3004"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3004
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3004
+          initialDelaySeconds: 15
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-collector-service
+  namespace: analytics
+spec:
+  selector:
+    app: analytics-collector
+  ports:
+  - protocol: TCP
+    port: 3004
+    targetPort: 3004
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: analytics-collector-hpa
+  namespace: analytics
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: analytics-collector
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
