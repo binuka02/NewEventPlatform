@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: registration-service
-        image: YOUR_DOCKERHUB_USERNAME/registration-service:v1
+        image: binukx/registration-service:v1
         ports:
         - containerPort: 3003
         env:

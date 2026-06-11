@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: analytics-collector
-        image: YOUR_DOCKERHUB_USERNAME/analytics-collector:v1
+        image: binukx/analytics-collector:v1
         ports:
         - containerPort: 3004
         env:

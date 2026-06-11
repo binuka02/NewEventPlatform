@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: YOUR_DOCKERHUB_USERNAME/new-event-frontend:v1
+        image: binukx/new-event-frontend:v1
         ports:
         - containerPort: 80
         resources:
@@ -55,7 +55,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: YOUR_DOCKERHUB_USERNAME/new-event-frontend:v2
+        image: binukx/new-event-frontend:v2
         ports:
         - containerPort: 80
         resources:

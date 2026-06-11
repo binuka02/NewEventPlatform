@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: program-service
-        image: YOUR_DOCKERHUB_USERNAME/program-service:v1
+        image: binukx/program-service:v1
         ports:
         - containerPort: 3002
         env:
