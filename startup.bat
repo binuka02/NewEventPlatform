@@ -14,6 +14,7 @@ echo.
 echo Total time: approximately 35 minutes.
 echo Press Ctrl+C to cancel or any key to continue...
 pause > nul
+set /p RDS_PASSWORD=Enter RDS Password:
 echo.
 
 echo [1/7] Cleaning up any leftover stacks...
@@ -58,7 +59,7 @@ echo Nodegroup ready!
 echo.
 
 echo [6/7] Creating RDS PostgreSQL Database...
-aws rds create-db-instance --db-instance-identifier new-event-db --db-instance-class db.t4g.micro --engine postgres --master-username postgres --master-user-password NewEvent2026! --allocated-storage 20 --no-multi-az --db-name neweventdb --region us-east-1 --no-paginate --output text --query "DBInstance.DBInstanceStatus" >nul 2>&1
+aws rds create-db-instance --db-instance-identifier new-event-db --db-instance-class db.t4g.micro --engine postgres --master-username postgres --master-user-password %RDS_PASSWORD% --allocated-storage 20 --no-multi-az --db-name neweventdb --region us-east-1 --no-paginate --output text --query "DBInstance.DBInstanceStatus" >nul 2>&1
 echo RDS creation started...
 echo Waiting for RDS to be available (5-10 mins)...
 aws rds wait db-instance-available --db-instance-identifier new-event-db --region us-east-1
@@ -73,7 +74,7 @@ echo Namespaces ready!
 echo.
 for /f %%i in ('aws rds describe-db-instances --db-instance-identifier new-event-db --query "DBInstances[0].Endpoint.Address" --output text --region us-east-1 --no-paginate') do set RDS_HOST=%%i
 echo RDS Endpoint: %RDS_HOST%
-kubectl create secret generic db-secret --from-literal=host=%RDS_HOST% --from-literal=port=5432 --from-literal=database=neweventdb --from-literal=username=postgres --from-literal=password=NewEvent2026! -n production --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic db-secret --from-literal=host=%RDS_HOST% --from-literal=port=5432 --from-literal=database=neweventdb --from-literal=username=postgres --from-literal=password=%RDS_PASSWORD% -n production --dry-run=client -o yaml | kubectl apply -f -
 kubectl create secret generic aws-secret --from-literal=bucket-name=new-event-notifications-896328677531 --from-literal=region=us-east-1 --from-literal=lambda-url=https://fjpqigjzk4tbjt6jcwco35m5mu0xwxut.lambda-url.us-east-1.on.aws/ -n production --dry-run=client -o yaml | kubectl apply -f -
 echo Secrets created!
 echo.
