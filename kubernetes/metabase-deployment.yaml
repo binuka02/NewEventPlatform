@@ -12,7 +12,17 @@ spec:
     metadata:
       labels:
         app: metabase
+        heavy: "true"
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  heavy: "true"
+              topologyKey: kubernetes.io/hostname
       containers:
       - name: metabase
         image: metabase/metabase:latest
@@ -23,12 +33,14 @@ spec:
           value: h2
         - name: MB_DB_FILE
           value: /metabase-data/metabase.db
+        - name: JAVA_OPTS
+          value: "-Xmx600m -Xms256m"
         resources:
           requests:
             memory: "512Mi"
             cpu: "200m"
           limits:
-            memory: "1Gi"
+            memory: "768Mi"
             cpu: "500m"
         volumeMounts:
         - name: metabase-data
@@ -37,3 +49,17 @@ spec:
       - name: metabase-data
         persistentVolumeClaim:
           claimName: metabase-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: metabase
+  namespace: analytics
+spec:
+  selector:
+    app: metabase
+  ports:
+  - protocol: TCP
+    port: 3000
+    targetPort: 3000
+  type: LoadBalancer
