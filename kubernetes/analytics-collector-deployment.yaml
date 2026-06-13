@@ -6,7 +6,7 @@ metadata:
   labels:
     app: analytics-collector
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: analytics-collector
@@ -75,7 +75,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: analytics-collector
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 5
   metrics:
   - type: Resource

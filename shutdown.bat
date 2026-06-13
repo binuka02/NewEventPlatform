@@ -4,8 +4,9 @@ echo   NEW EVENT PLATFORM - SHUTDOWN SCRIPT
 echo ==========================================
 echo.
 echo This will:
-echo   - DELETE EKS Nodegroup first
+echo   - DELETE EKS Nodegroup (workers-small)
 echo   - DELETE EKS Cluster
+echo   - DELETE CloudFormation stacks (fully)
 echo   - TERMINATE RDS Database
 echo   - KEEP S3 Bucket untouched
 echo.
@@ -13,64 +14,100 @@ echo Press Ctrl+C to cancel or any key to continue...
 pause > nul
 echo.
 
-echo [1/4] Deleting EKS Nodegroup first (takes 5-10 mins)...
-eksctl delete nodegroup --region=us-east-1 --cluster=new-event-cluster --name=workers --disable-eviction
-if %errorlevel% neq 0 (
-    echo Nodegroup may not exist or already deleted - continuing...
-) else (
-    echo Nodegroup deleted successfully!
-)
+echo [1/5] Deleting EKS Nodegroups...
+eksctl delete nodegroup --region=us-east-1 --cluster=new-event-cluster --name=workers-small --disable-eviction >nul 2>&1
+eksctl delete nodegroup --region=us-east-1 --cluster=new-event-cluster --name=workers --disable-eviction >nul 2>&1
+echo Nodegroup deletion initiated!
 echo.
 
-echo [2/4] Deleting EKS Cluster (takes 5-10 mins)...
+echo [2/5] Deleting EKS Cluster...
 eksctl delete cluster --region=us-east-1 --name=new-event-cluster
+echo.
+
+echo [3/5] Force deleting CloudFormation stacks (cleanup)...
+aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-nodegroup-workers-small --region us-east-1 --no-paginate >nul 2>&1
+aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-nodegroup-workers --region us-east-1 --no-paginate >nul 2>&1
+aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-cluster --region us-east-1 --no-paginate >nul 2>&1
+echo Waiting for CloudFormation stacks to fully delete...
+
+:wait_cf
+aws cloudformation describe-stacks --stack-name eksctl-new-event-cluster-cluster --region us-east-1 --query "Stacks[0].StackStatus" --no-paginate >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Still deleting CloudFormation stack... waiting 20 seconds...
+    timeout /t 20 /nobreak > nul
+    goto wait_cf
+)
+echo CloudFormation stacks fully deleted!
+echo.
+
+echo [4/5] Terminating RDS Database...
+aws rds delete-db-instance --db-instance-identifier new-event-db --skip-final-snapshot --region us-east-1 --no-paginate --output text --query "DBInstance.DBInstanceStatus" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Trying AWS CLI delete instead...
-    aws eks delete-cluster --name new-event-cluster --region us-east-1 --no-paginate
-    echo Cluster deletion started, waiting for completion...
-    :wait_cluster
-    aws eks describe-cluster --name new-event-cluster --region us-east-1 --query "cluster.status" --no-paginate >nul 2>&1
-    if %errorlevel% equ 0 (
-        echo Still deleting... waiting 30 seconds...
-        timeout /t 30 /nobreak > nul
-        goto wait_cluster
-    )
-    echo EKS Cluster fully deleted!
+    echo WARNING: RDS may already be deleted - skipping
 ) else (
-    echo EKS Cluster deleted successfully!
+    echo RDS termination started!
 )
 echo.
 
-echo [3/4] Terminating RDS Database...
-aws rds delete-db-instance --db-instance-identifier new-event-db --skip-final-snapshot --region us-east-1 --no-paginate --output text --query "DBInstance.DBInstanceStatus"
+echo [5/5] Waiting for all resources to fully terminate...
+timeout /t 60 /nobreak > nul
+echo.
+
+echo ==========================================
+echo   FINAL STATUS CHECK
+echo ==========================================
+echo.
+
+echo === EKS Clusters ===
+aws eks list-clusters --region us-east-1 --no-paginate --output table
+echo.
+
+echo === CloudFormation Stacks (new-event related) ===
+aws cloudformation list-stacks --region us-east-1 --no-paginate --output table --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE DELETE_FAILED --query "StackSummaries[?contains(StackName,'new-event')].[StackName,StackStatus]" 2>nul
 if %errorlevel% neq 0 (
-    echo WARNING: RDS termination had issues - may already be deleted
-) else (
-    echo RDS termination started successfully!
+    echo No active new-event stacks found!
 )
 echo.
 
-echo [4/4] Verifying shutdown...
-echo.
-echo === Checking EKS Clusters ===
-aws eks list-clusters --region us-east-1 --no-paginate
-echo.
-echo === Checking RDS Instances ===
-aws rds describe-db-instances --region us-east-1 --no-paginate --output text --query "DBInstances[*].[DBInstanceIdentifier,DBInstanceStatus]"
+echo === RDS Instances ===
+aws rds describe-db-instances --region us-east-1 --no-paginate --output table --query "DBInstances[*].[DBInstanceIdentifier,DBInstanceStatus,DBInstanceClass]" 2>nul
 if %errorlevel% neq 0 (
-    echo No RDS instances found - all deleted!
+    echo No RDS instances found - fully deleted!
 )
 echo.
-echo === S3 Bucket (untouched) ===
+
+echo === S3 Buckets (kept) ===
 aws s3 ls --no-paginate
 echo.
 
+echo === EC2 Instances ===
+aws ec2 describe-instances --region us-east-1 --no-paginate --output table --query "Reservations[*].Instances[*].[InstanceId,State.Name,InstanceType]" --filters "Name=instance-state-name,Values=running,pending,stopping,stopped" 2>nul
+if %errorlevel% neq 0 (
+    echo No EC2 instances found!
+)
+echo.
+
 echo ==========================================
-echo   SHUTDOWN COMPLETE!
+echo   SHUTDOWN SUMMARY
+echo ==========================================
 echo.
 echo   Deleted:
-echo   - EKS Cluster        
-echo   - RDS Database       
+echo   - EKS Cluster            = $0.00/day
+echo   - EKS Nodegroup (small)  = $0.00/day
+echo   - CloudFormation Stacks  = $0.00/day
+echo   - RDS Database           = $0.00/day
+echo   - EC2 Nodes              = $0.00/day
 echo.
+echo   Kept:
+echo   - S3 Bucket              = $0.00 (free tier)
+echo   - Lambda Function        = $0.00 (pay per use)
+echo   - EBS Volumes (if any)   = ~$0.10/day each
+echo.
+echo   TOTAL DAILY COST = $0.00/day
+echo.
+echo   Run startup.bat to recreate when ready.
+echo   (Takes approximately 30 minutes)
 echo ==========================================
-pause
+echo.
+echo Press any key to close this window...
+pause > nul

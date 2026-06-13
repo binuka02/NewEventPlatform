@@ -9,7 +9,7 @@ app.use(express.json());
 
 // ClickHouse connection
 const clickhouse = createClient({
-  host: process.env.CLICKHOUSE_HOST || "http://clickhouse-service:8123",
+  url: process.env.CLICKHOUSE_HOST || "http://clickhouse-service:8123",
   username: process.env.CLICKHOUSE_USER || "default",
   password: process.env.CLICKHOUSE_PASSWORD || "",
   database: process.env.CLICKHOUSE_DB || "analytics",
@@ -54,6 +54,11 @@ async function initClickHouse() {
 // POST /analytics - Receive analytics event from frontend
 app.post("/analytics", async (req, res) => {
   try {
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Empty request body" });
+    }
     const {
       event_type,
       session_id,
@@ -78,7 +83,12 @@ app.post("/analytics", async (req, res) => {
         {
           event_type: event_type || "unknown",
           session_id: session_id || "",
-          timestamp: timestamp ? new Date(timestamp) : new Date(),
+          timestamp: timestamp
+            ? new Date(timestamp)
+                .toISOString()
+                .replace("T", " ")
+                .substring(0, 19)
+            : new Date().toISOString().replace("T", " ").substring(0, 19),
           page_url: page_url || "",
           user_agent: user_agent || "",
           section_name: section_name || "",
