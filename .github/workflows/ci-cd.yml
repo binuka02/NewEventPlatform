@@ -15,7 +15,7 @@ env:
 
 jobs:
   # ============================================
-  # JOB 1: Build and Test
+  # JOB 1: Build and Push Docker Images
   # ============================================
   build:
     name: Build and Push Docker Images
@@ -84,6 +84,61 @@ jobs:
             ${{ env.DOCKERHUB_USERNAME }}/analytics-collector:${{ steps.vars.outputs.TAG }}
             ${{ env.DOCKERHUB_USERNAME }}/analytics-collector:latest
 
+      # ============================================
+      # SECURITY SCANNING WITH TRIVY
+      # ============================================
+      - name: Scan Frontend image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKERHUB_USERNAME }}/new-event-frontend:${{ steps.vars.outputs.TAG }}
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+          output: 'trivy-frontend.txt'
+
+      - name: Scan Event Service image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKERHUB_USERNAME }}/event-service:${{ steps.vars.outputs.TAG }}
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+          output: 'trivy-event.txt'
+
+      - name: Scan Program Service image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKERHUB_USERNAME }}/program-service:${{ steps.vars.outputs.TAG }}
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+          output: 'trivy-program.txt'
+
+      - name: Scan Registration Service image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKERHUB_USERNAME }}/registration-service:${{ steps.vars.outputs.TAG }}
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+          output: 'trivy-registration.txt'
+
+      - name: Scan Analytics Collector image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKERHUB_USERNAME }}/analytics-collector:${{ steps.vars.outputs.TAG }}
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+          output: 'trivy-analytics.txt'
+
+      - name: Upload Trivy scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-security-reports
+          path: trivy-*.txt
+
   # ============================================
   # JOB 2: Blue-Green Deployment
   # ============================================
@@ -130,15 +185,12 @@ jobs:
           TAG=${{ steps.vars.outputs.TAG }}
           echo "Deploying to $DEPLOY_COLOR with tag $TAG"
 
-          # Update the inactive deployment with new image
           kubectl set image deployment/frontend-$DEPLOY_COLOR \
             frontend=binukx/new-event-frontend:$TAG \
             -n production
 
-          # Scale up inactive deployment
-          kubectl scale deployment frontend-$DEPLOY_COLOR --replicas=2 -n production
+          kubectl scale deployment frontend-$DEPLOY_COLOR --replicas=1 -n production
 
-          # Wait for rollout to complete
           kubectl rollout status deployment/frontend-$DEPLOY_COLOR -n production --timeout=300s
 
       - name: Switch traffic to new version
@@ -146,7 +198,6 @@ jobs:
           DEPLOY_COLOR=${{ steps.color.outputs.DEPLOY_COLOR }}
           echo "Switching traffic to $DEPLOY_COLOR"
 
-          # Patch the service to point to new color
           kubectl patch service frontend-service -n production \
             -p "{\"spec\":{\"selector\":{\"app\":\"frontend\",\"version\":\"$DEPLOY_COLOR\"}}}"
 
@@ -162,7 +213,6 @@ jobs:
         run: |
           TAG=${{ steps.vars.outputs.TAG }}
 
-          # Update all backend services
           kubectl set image deployment/event-service \
             event-service=binukx/event-service:$TAG -n production
           kubectl set image deployment/program-service \
@@ -172,7 +222,6 @@ jobs:
           kubectl set image deployment/analytics-collector \
             analytics-collector=binukx/analytics-collector:$TAG -n analytics
 
-          # Wait for all rollouts
           kubectl rollout status deployment/event-service -n production --timeout=300s
           kubectl rollout status deployment/program-service -n production --timeout=300s
           kubectl rollout status deployment/registration-service -n production --timeout=300s

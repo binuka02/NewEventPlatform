@@ -12,7 +12,17 @@ spec:
     metadata:
       labels:
         app: clickhouse
+        heavy: "true"
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  heavy: "true"
+              topologyKey: kubernetes.io/hostname
       containers:
       - name: clickhouse
         image: clickhouse/clickhouse-server:23.8-alpine
