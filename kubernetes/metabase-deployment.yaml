@@ -14,7 +14,21 @@ spec:
         app: metabase
         heavy: "true"
     spec:
+      tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "metabase"
+        effect: "NoSchedule"
       affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - ip-192-168-15-212.ec2.internal
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 100
@@ -34,13 +48,13 @@ spec:
         - name: MB_DB_FILE
           value: /metabase-data/metabase.db
         - name: JAVA_OPTS
-          value: "-Xmx600m -Xms256m"
+          value: "-Xmx800m -Xms512m"
         resources:
           requests:
-            memory: "512Mi"
+            memory: "600Mi"
             cpu: "200m"
           limits:
-            memory: "768Mi"
+            memory: "1000Mi"
             cpu: "500m"
         volumeMounts:
         - name: metabase-data
