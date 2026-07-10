@@ -25,7 +25,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: clickhouse
-        image: clickhouse/clickhouse-server:23.8-alpine
+        image: clickhouse/clickhouse-server:23.8
         ports:
         - containerPort: 8123
           name: http
