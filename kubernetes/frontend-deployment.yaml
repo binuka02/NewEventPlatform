@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: binukx/new-event-frontend:v4
+        image: binukx/new-event-frontend:v5
         ports:
         - containerPort: 80
         resources:
