@@ -64,13 +64,23 @@ aws eks wait nodegroup-active --cluster-name new-event-cluster --nodegroup-name 
 echo Nodegroup ready!
 echo.
 
-echo [6/11] Setting up OIDC provider AFTER nodegroup is ready...
+echo [6/11] Creating t3.small nodegroup (4 nodes) via AWS CLI...
+for /f %%a in ('aws eks describe-cluster --name new-event-cluster --region us-east-1 --query "cluster.resourcesVpcConfig.subnetIds[0]" --output text --no-paginate') do set SUBNET1=%%a
+for /f %%a in ('aws eks describe-cluster --name new-event-cluster --region us-east-1 --query "cluster.resourcesVpcConfig.subnetIds[1]" --output text --no-paginate') do set SUBNET2=%%a
+echo Subnets: %SUBNET1% %SUBNET2%
+aws eks create-nodegroup --cluster-name new-event-cluster --nodegroup-name workers-small --node-role arn:aws:iam::896328677531:role/EKSNodeInstanceRole --subnets %SUBNET1% %SUBNET2% --instance-types t3.small --scaling-config minSize=1,maxSize=4,desiredSize=4 --ami-type AL2023_x86_64_STANDARD --region us-east-1 --no-paginate
+echo Waiting for nodes to be ready (5-10 mins)...
+aws eks wait nodegroup-active --cluster-name new-event-cluster --nodegroup-name workers-small --region us-east-1
+echo Nodegroup ready!
+echo.
+
+echo [6b/11] Setting up OIDC AFTER nodegroup is ready...
 for /f %%i in ('aws eks describe-cluster --name new-event-cluster --region us-east-1 --query "cluster.identity.oidc.issuer" --output text --no-paginate') do set OIDC_URL=%%i
 for /f "tokens=5 delims=/" %%i in ("%OIDC_URL%") do set OIDC_ID=%%i
 echo OIDC ID: %OIDC_ID%
 aws iam create-open-id-connect-provider --url %OIDC_URL% --client-id-list sts.amazonaws.com --thumbprint-list 9e99a48a9960b14926bb7f3b02e22da2b0ab7280 --region us-east-1 --no-paginate >nul 2>&1
 aws iam update-assume-role-policy --role-name AmazonEKS_EBS_CSI_DriverRole --policy-document "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Federated\":\"arn:aws:iam::896328677531:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/%OIDC_ID%\"},\"Action\":\"sts:AssumeRoleWithWebIdentity\",\"Condition\":{\"StringEquals\":{\"oidc.eks.us-east-1.amazonaws.com/id/%OIDC_ID%:sub\":\"system:serviceaccount:kube-system:ebs-csi-controller-sa\"}}}]}"
-echo OIDC provider configured!
+echo OIDC configured!
 echo.
 
 echo [7/11] Creating RDS PostgreSQL Database...
@@ -104,16 +114,13 @@ echo Secrets created!
 echo.
 echo Installing EBS CSI Driver addon...
 aws eks create-addon --cluster-name new-event-cluster --addon-name aws-ebs-csi-driver --service-account-role-arn arn:aws:iam::896328677531:role/AmazonEKS_EBS_CSI_DriverRole --region us-east-1 --no-paginate >nul 2>&1
-echo EBS CSI Driver installing...
-echo Waiting 2 minutes for EBS CSI addon to install...
-timeout /t 120 /nobreak > nul
-echo.
+echo Waiting 3 minutes for EBS CSI addon to install...
+timeout /t 180 /nobreak > nul
 echo Restarting EBS CSI controller to pick up new OIDC...
 kubectl rollout restart deployment/ebs-csi-controller -n kube-system >nul 2>&1
-echo Waiting 60 seconds for EBS CSI controller to be ready...
+echo Waiting 60 seconds for EBS CSI to be healthy...
 timeout /t 60 /nobreak > nul
-echo.
-echo Verifying EBS CSI controller is healthy...
+echo Verifying EBS CSI is healthy...
 kubectl get pods -n kube-system -l app=ebs-csi-controller
 echo.
 
