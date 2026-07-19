@@ -140,7 +140,7 @@ jobs:
           path: trivy-*.txt
 
   # ============================================
-  # JOB 2: Blue-Green Deployment
+  # JOB 2: Blue-Green Deployment (all 5 services)
   # ============================================
   deploy:
     name: Blue-Green Deployment
@@ -166,7 +166,7 @@ jobs:
         id: vars
         run: echo "TAG=$(echo $GITHUB_SHA | head -c7)" >> $GITHUB_OUTPUT
 
-      - name: Determine current active color
+      - name: Determine current active color (frontend)
         id: color
         run: |
           CURRENT=$(kubectl get service frontend-service -n production -o jsonpath='{.spec.selector.version}' 2>/dev/null || echo "blue")
@@ -179,11 +179,11 @@ jobs:
           fi
           echo "Current active: $CURRENT"
 
-      - name: Deploy to inactive color
+      - name: Deploy frontend to inactive color
         run: |
           DEPLOY_COLOR=${{ steps.color.outputs.DEPLOY_COLOR }}
           TAG=${{ steps.vars.outputs.TAG }}
-          echo "Deploying to $DEPLOY_COLOR with tag $TAG"
+          echo "Deploying frontend to $DEPLOY_COLOR with tag $TAG"
 
           kubectl set image deployment/frontend-$DEPLOY_COLOR \
             frontend=binukx/new-event-frontend:$TAG \
@@ -193,39 +193,209 @@ jobs:
 
           kubectl rollout status deployment/frontend-$DEPLOY_COLOR -n production --timeout=300s
 
-      - name: Switch traffic to new version
+      - name: Switch frontend traffic to new version
         run: |
           DEPLOY_COLOR=${{ steps.color.outputs.DEPLOY_COLOR }}
-          echo "Switching traffic to $DEPLOY_COLOR"
+          echo "Switching frontend traffic to $DEPLOY_COLOR"
 
           kubectl patch service frontend-service -n production \
             -p "{\"spec\":{\"selector\":{\"app\":\"frontend\",\"version\":\"$DEPLOY_COLOR\"}}}"
 
-          echo "Traffic switched to $DEPLOY_COLOR successfully!"
+          echo "Frontend traffic switched to $DEPLOY_COLOR successfully!"
 
-      - name: Scale down old version
+      - name: Scale down old frontend version
         run: |
           ACTIVE_COLOR=${{ steps.color.outputs.ACTIVE_COLOR }}
-          echo "Scaling down old $ACTIVE_COLOR deployment"
+          echo "Scaling down old frontend $ACTIVE_COLOR deployment"
           kubectl scale deployment frontend-$ACTIVE_COLOR --replicas=0 -n production
 
-      - name: Deploy backend services
+      - name: Deploy event-service (Blue-Green)
         run: |
           TAG=${{ steps.vars.outputs.TAG }}
+          CURRENT=$(kubectl get service event-service -n production -o jsonpath='{.spec.selector.version}' 2>/dev/null || echo "blue")
+          if [ "$CURRENT" == "blue" ]; then
+            TARGET=green
+            OLD=blue
+          else
+            TARGET=blue
+            OLD=green
+          fi
+          echo "event-service: currently live = $CURRENT, deploying to $TARGET"
 
-          kubectl set image deployment/event-service \
-            event-service=binukx/event-service:$TAG -n production
-          kubectl set image deployment/program-service \
-            program-service=binukx/program-service:$TAG -n production
-          kubectl set image deployment/registration-service \
-            registration-service=binukx/registration-service:$TAG -n production
-          kubectl set image deployment/analytics-collector \
-            analytics-collector=binukx/analytics-collector:$TAG -n analytics
+          kubectl set image deployment/event-service-$TARGET event-service=binukx/event-service:$TAG -n production
+          kubectl scale deployment event-service-$TARGET --replicas=1 -n production
+          kubectl rollout status deployment/event-service-$TARGET -n production --timeout=300s
 
-          kubectl rollout status deployment/event-service -n production --timeout=420s
-          kubectl rollout status deployment/program-service -n production --timeout=420s
-          kubectl rollout status deployment/registration-service -n production --timeout=420s
-          kubectl rollout status deployment/analytics-collector -n analytics --timeout=420s
+          kubectl patch service event-service -n production \
+            -p "{\"spec\":{\"selector\":{\"app\":\"event-service\",\"version\":\"$TARGET\"}}}"
+
+          kubectl scale deployment event-service-$OLD --replicas=0 -n production
+
+          kubectl delete hpa event-service-hpa -n production --ignore-not-found=true
+          cat <<EOF | kubectl apply -f -
+          apiVersion: autoscaling/v2
+          kind: HorizontalPodAutoscaler
+          metadata:
+            name: event-service-hpa
+            namespace: production
+          spec:
+            scaleTargetRef:
+              apiVersion: apps/v1
+              kind: Deployment
+              name: event-service-$TARGET
+            minReplicas: 1
+            maxReplicas: 5
+            metrics:
+            - type: Resource
+              resource:
+                name: cpu
+                target:
+                  type: Utilization
+                  averageUtilization: 70
+          EOF
+
+          echo "event-service now live on $TARGET, HPA retargeted"
+
+      - name: Deploy program-service (Blue-Green)
+        run: |
+          TAG=${{ steps.vars.outputs.TAG }}
+          CURRENT=$(kubectl get service program-service -n production -o jsonpath='{.spec.selector.version}' 2>/dev/null || echo "blue")
+          if [ "$CURRENT" == "blue" ]; then
+            TARGET=green
+            OLD=blue
+          else
+            TARGET=blue
+            OLD=green
+          fi
+          echo "program-service: currently live = $CURRENT, deploying to $TARGET"
+
+          kubectl set image deployment/program-service-$TARGET program-service=binukx/program-service:$TAG -n production
+          kubectl scale deployment program-service-$TARGET --replicas=1 -n production
+          kubectl rollout status deployment/program-service-$TARGET -n production --timeout=300s
+
+          kubectl patch service program-service -n production \
+            -p "{\"spec\":{\"selector\":{\"app\":\"program-service\",\"version\":\"$TARGET\"}}}"
+
+          kubectl scale deployment program-service-$OLD --replicas=0 -n production
+
+          kubectl delete hpa program-service-hpa -n production --ignore-not-found=true
+          cat <<EOF | kubectl apply -f -
+          apiVersion: autoscaling/v2
+          kind: HorizontalPodAutoscaler
+          metadata:
+            name: program-service-hpa
+            namespace: production
+          spec:
+            scaleTargetRef:
+              apiVersion: apps/v1
+              kind: Deployment
+              name: program-service-$TARGET
+            minReplicas: 1
+            maxReplicas: 5
+            metrics:
+            - type: Resource
+              resource:
+                name: cpu
+                target:
+                  type: Utilization
+                  averageUtilization: 70
+          EOF
+
+          echo "program-service now live on $TARGET, HPA retargeted"
+
+      - name: Deploy registration-service (Blue-Green)
+        run: |
+          TAG=${{ steps.vars.outputs.TAG }}
+          CURRENT=$(kubectl get service registration-service -n production -o jsonpath='{.spec.selector.version}' 2>/dev/null || echo "blue")
+          if [ "$CURRENT" == "blue" ]; then
+            TARGET=green
+            OLD=blue
+          else
+            TARGET=blue
+            OLD=green
+          fi
+          echo "registration-service: currently live = $CURRENT, deploying to $TARGET"
+
+          kubectl set image deployment/registration-service-$TARGET registration-service=binukx/registration-service:$TAG -n production
+          kubectl scale deployment registration-service-$TARGET --replicas=1 -n production
+          kubectl rollout status deployment/registration-service-$TARGET -n production --timeout=300s
+
+          kubectl patch service registration-service -n production \
+            -p "{\"spec\":{\"selector\":{\"app\":\"registration-service\",\"version\":\"$TARGET\"}}}"
+
+          kubectl scale deployment registration-service-$OLD --replicas=0 -n production
+
+          kubectl delete hpa registration-service-hpa -n production --ignore-not-found=true
+          cat <<EOF | kubectl apply -f -
+          apiVersion: autoscaling/v2
+          kind: HorizontalPodAutoscaler
+          metadata:
+            name: registration-service-hpa
+            namespace: production
+          spec:
+            scaleTargetRef:
+              apiVersion: apps/v1
+              kind: Deployment
+              name: registration-service-$TARGET
+            minReplicas: 1
+            maxReplicas: 5
+            metrics:
+            - type: Resource
+              resource:
+                name: cpu
+                target:
+                  type: Utilization
+                  averageUtilization: 70
+          EOF
+
+          echo "registration-service now live on $TARGET, HPA retargeted"
+
+      - name: Deploy analytics-collector (Blue-Green)
+        run: |
+          TAG=${{ steps.vars.outputs.TAG }}
+          CURRENT=$(kubectl get service analytics-collector-service -n analytics -o jsonpath='{.spec.selector.version}' 2>/dev/null || echo "blue")
+          if [ "$CURRENT" == "blue" ]; then
+            TARGET=green
+            OLD=blue
+          else
+            TARGET=blue
+            OLD=green
+          fi
+          echo "analytics-collector: currently live = $CURRENT, deploying to $TARGET"
+
+          kubectl set image deployment/analytics-collector-$TARGET analytics-collector=binukx/analytics-collector:$TAG -n analytics
+          kubectl scale deployment analytics-collector-$TARGET --replicas=1 -n analytics
+          kubectl rollout status deployment/analytics-collector-$TARGET -n analytics --timeout=300s
+
+          kubectl patch service analytics-collector-service -n analytics \
+            -p "{\"spec\":{\"selector\":{\"app\":\"analytics-collector\",\"version\":\"$TARGET\"}}}"
+
+          kubectl scale deployment analytics-collector-$OLD --replicas=0 -n analytics
+
+          kubectl delete hpa analytics-collector-hpa -n analytics --ignore-not-found=true
+          cat <<EOF | kubectl apply -f -
+          apiVersion: autoscaling/v2
+          kind: HorizontalPodAutoscaler
+          metadata:
+            name: analytics-collector-hpa
+            namespace: analytics
+          spec:
+            scaleTargetRef:
+              apiVersion: apps/v1
+              kind: Deployment
+              name: analytics-collector-$TARGET
+            minReplicas: 1
+            maxReplicas: 5
+            metrics:
+            - type: Resource
+              resource:
+                name: cpu
+                target:
+                  type: Utilization
+                  averageUtilization: 70
+          EOF
+
+          echo "analytics-collector now live on $TARGET, HPA retargeted"
 
       - name: Verify deployment
         run: |
@@ -234,4 +404,8 @@ jobs:
           kubectl get pods -n analytics
           echo "=== Services ==="
           kubectl get services -n production
+          kubectl get services -n analytics
+          echo "=== HPAs ==="
+          kubectl get hpa -n production
+          kubectl get hpa -n analytics
           echo "=== Deployment complete! ==="
