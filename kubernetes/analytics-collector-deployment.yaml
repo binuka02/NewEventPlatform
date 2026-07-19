@@ -7,6 +7,11 @@ metadata:
     app: analytics-collector
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: analytics-collector
@@ -17,7 +22,7 @@ spec:
     spec:
       containers:
       - name: analytics-collector
-        image: binukx/analytics-collector:v1
+        image: binukx/analytics-collector:v2
         ports:
         - containerPort: 3004
         env:

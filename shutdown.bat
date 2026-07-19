@@ -6,26 +6,36 @@ echo.
 echo This will:
 echo   - DELETE EKS Nodegroup (workers-small)
 echo   - DELETE EKS Cluster
-echo   - DELETE CloudFormation stacks (fully)
+echo   - DELETE CloudFormation stacks
 echo   - TERMINATE RDS Database
 echo   - KEEP S3 Bucket untouched
+echo   - KEEP Lambda function untouched
 echo.
 echo Press Ctrl+C to cancel or any key to continue...
 pause > nul
 echo.
 
-echo [1/5] Deleting EKS Nodegroups...
+echo [1/6] Deleting PersistentVolumeClaims (so EBS volumes are cleaned up, not orphaned)...
+kubectl delete pvc clickhouse-pvc -n analytics --ignore-not-found >nul 2>&1
+echo Waiting 20 seconds for EBS CSI Driver to deprovision the volume...
+timeout /t 20 /nobreak > nul
+echo PVC cleanup done!
+echo.
+
+echo [2/6] Deleting EKS Nodegroups...
 eksctl delete nodegroup --region=us-east-1 --cluster=new-event-cluster --name=workers-small --disable-eviction >nul 2>&1
+eksctl delete nodegroup --region=us-east-1 --cluster=new-event-cluster --name=workers-medium --disable-eviction >nul 2>&1
 eksctl delete nodegroup --region=us-east-1 --cluster=new-event-cluster --name=workers --disable-eviction >nul 2>&1
 echo Nodegroup deletion initiated!
 echo.
 
-echo [2/5] Deleting EKS Cluster...
+echo [3/6] Deleting EKS Cluster...
 eksctl delete cluster --region=us-east-1 --name=new-event-cluster
 echo.
 
-echo [3/5] Force deleting CloudFormation stacks (cleanup)...
+echo [4/6] Force deleting CloudFormation stacks...
 aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-nodegroup-workers-small --region us-east-1 --no-paginate >nul 2>&1
+aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-nodegroup-workers-medium --region us-east-1 --no-paginate >nul 2>&1
 aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-nodegroup-workers --region us-east-1 --no-paginate >nul 2>&1
 aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-cluster --region us-east-1 --no-paginate >nul 2>&1
 echo Waiting for CloudFormation stacks to fully delete...
@@ -40,7 +50,7 @@ if %errorlevel% equ 0 (
 echo CloudFormation stacks fully deleted!
 echo.
 
-echo [4/5] Terminating RDS Database...
+echo [5/6] Terminating RDS Database...
 aws rds delete-db-instance --db-instance-identifier new-event-db --skip-final-snapshot --region us-east-1 --no-paginate --output text --query "DBInstance.DBInstanceStatus" >nul 2>&1
 if %errorlevel% neq 0 (
     echo WARNING: RDS may already be deleted - skipping
@@ -49,7 +59,7 @@ if %errorlevel% neq 0 (
 )
 echo.
 
-echo [5/5] Waiting for all resources to fully terminate...
+echo [6/6] Waiting for all resources to fully terminate...
 timeout /t 60 /nobreak > nul
 echo.
 
@@ -60,13 +70,6 @@ echo.
 
 echo === EKS Clusters ===
 aws eks list-clusters --region us-east-1 --no-paginate --output table
-echo.
-
-echo === CloudFormation Stacks (new-event related) ===
-aws cloudformation list-stacks --region us-east-1 --no-paginate --output table --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE DELETE_FAILED --query "StackSummaries[?contains(StackName,'new-event')].[StackName,StackStatus]" 2>nul
-if %errorlevel% neq 0 (
-    echo No active new-event stacks found!
-)
 echo.
 
 echo === RDS Instances ===
@@ -92,21 +95,25 @@ echo   SHUTDOWN SUMMARY
 echo ==========================================
 echo.
 echo   Deleted:
-echo   - EKS Cluster            = $0.00/day
-echo   - EKS Nodegroup (small)  = $0.00/day
-echo   - CloudFormation Stacks  = $0.00/day
-echo   - RDS Database           = $0.00/day
-echo   - EC2 Nodes              = $0.00/day
+echo   - EKS Cluster             = $0.00/day
+echo   - EKS Nodegroup (4xsmall) = $0.00/day
+echo   - CloudFormation Stacks   = $0.00/day
+echo   - RDS Database            = $0.00/day
+echo   - EC2 Nodes               = $0.00/day
+echo   - ClickHouse EBS Volume   = $0.00/day (deleted via PVC before cluster teardown)
 echo.
 echo   Kept:
-echo   - S3 Bucket              = $0.00 (free tier)
-echo   - Lambda Function        = $0.00 (pay per use)
-echo   - EBS Volumes (if any)   = ~$0.10/day each
+echo   - S3 Bucket               = $0.00 (free tier)
+echo   - Lambda Function         = $0.00 (pay per use)
 echo.
-echo   TOTAL DAILY COST = $0.00/day
+echo   NOTE: If you have EBS volumes from BEFORE this fix was added, check
+echo   EC2 - Elastic Block Store - Volumes in the AWS Console for any
+echo   leftover "available" (unattached) volumes and delete them manually.
+echo.
+echo   TOTAL DAILY COST = ~$0.20/day (EBS volumes only)
 echo.
 echo   Run startup.bat to recreate when ready.
-echo   (Takes approximately 30 minutes)
+echo   (Takes approximately 40 minutes)
 echo ==========================================
 echo.
 echo Press any key to close this window...

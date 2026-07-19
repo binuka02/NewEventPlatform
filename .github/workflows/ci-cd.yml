@@ -92,7 +92,7 @@ jobs:
         with:
           image-ref: ${{ env.DOCKERHUB_USERNAME }}/new-event-frontend:${{ steps.vars.outputs.TAG }}
           format: 'table'
-          exit-code: '0'
+          exit-code: '1'
           severity: 'CRITICAL,HIGH'
           output: 'trivy-frontend.txt'
 
@@ -101,7 +101,7 @@ jobs:
         with:
           image-ref: ${{ env.DOCKERHUB_USERNAME }}/event-service:${{ steps.vars.outputs.TAG }}
           format: 'table'
-          exit-code: '0'
+          exit-code: '1'
           severity: 'CRITICAL,HIGH'
           output: 'trivy-event.txt'
 
@@ -110,7 +110,7 @@ jobs:
         with:
           image-ref: ${{ env.DOCKERHUB_USERNAME }}/program-service:${{ steps.vars.outputs.TAG }}
           format: 'table'
-          exit-code: '0'
+          exit-code: '1'
           severity: 'CRITICAL,HIGH'
           output: 'trivy-program.txt'
 
@@ -119,7 +119,7 @@ jobs:
         with:
           image-ref: ${{ env.DOCKERHUB_USERNAME }}/registration-service:${{ steps.vars.outputs.TAG }}
           format: 'table'
-          exit-code: '0'
+          exit-code: '1'
           severity: 'CRITICAL,HIGH'
           output: 'trivy-registration.txt'
 
@@ -128,7 +128,7 @@ jobs:
         with:
           image-ref: ${{ env.DOCKERHUB_USERNAME }}/analytics-collector:${{ steps.vars.outputs.TAG }}
           format: 'table'
-          exit-code: '0'
+          exit-code: '1'
           severity: 'CRITICAL,HIGH'
           output: 'trivy-analytics.txt'
 
@@ -222,10 +222,10 @@ jobs:
           kubectl set image deployment/analytics-collector \
             analytics-collector=binukx/analytics-collector:$TAG -n analytics
 
-          kubectl rollout status deployment/event-service -n production --timeout=300s
-          kubectl rollout status deployment/program-service -n production --timeout=300s
-          kubectl rollout status deployment/registration-service -n production --timeout=300s
-          kubectl rollout status deployment/analytics-collector -n analytics --timeout=300s
+          kubectl rollout status deployment/event-service -n production --timeout=420s
+          kubectl rollout status deployment/program-service -n production --timeout=420s
+          kubectl rollout status deployment/registration-service -n production --timeout=420s
+          kubectl rollout status deployment/analytics-collector -n analytics --timeout=420s
 
       - name: Verify deployment
         run: |
