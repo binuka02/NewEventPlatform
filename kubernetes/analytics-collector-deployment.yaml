@@ -1,10 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: analytics-collector
+  name: analytics-collector-blue
   namespace: analytics
   labels:
     app: analytics-collector
+    version: blue
 spec:
   replicas: 1
   strategy:
@@ -15,10 +16,12 @@ spec:
   selector:
     matchLabels:
       app: analytics-collector
+      version: blue
   template:
     metadata:
       labels:
         app: analytics-collector
+        version: blue
     spec:
       containers:
       - name: analytics-collector
@@ -37,22 +40,67 @@ spec:
         - name: PORT
           value: "3004"
         resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "200m" }
         livenessProbe:
-          httpGet:
-            path: /health
-            port: 3004
+          httpGet: { path: /health, port: 3004 }
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
-          httpGet:
-            path: /health
-            port: 3004
+          httpGet: { path: /health, port: 3004 }
+          initialDelaySeconds: 15
+          periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-collector-green
+  namespace: analytics
+  labels:
+    app: analytics-collector
+    version: green
+spec:
+  replicas: 0
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: analytics-collector
+      version: green
+  template:
+    metadata:
+      labels:
+        app: analytics-collector
+        version: green
+    spec:
+      containers:
+      - name: analytics-collector
+        image: binukx/analytics-collector:v2
+        ports:
+        - containerPort: 3004
+        env:
+        - name: CLICKHOUSE_HOST
+          value: "http://clickhouse-service:8123"
+        - name: CLICKHOUSE_USER
+          value: "default"
+        - name: CLICKHOUSE_PASSWORD
+          value: ""
+        - name: CLICKHOUSE_DB
+          value: "analytics"
+        - name: PORT
+          value: "3004"
+        resources:
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "200m" }
+        livenessProbe:
+          httpGet: { path: /health, port: 3004 }
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet: { path: /health, port: 3004 }
           initialDelaySeconds: 15
           periodSeconds: 5
 ---
@@ -64,6 +112,7 @@ metadata:
 spec:
   selector:
     app: analytics-collector
+    version: blue
   ports:
   - protocol: TCP
     port: 3004
@@ -79,7 +128,7 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: analytics-collector
+    name: analytics-collector-blue
   minReplicas: 1
   maxReplicas: 5
   metrics:

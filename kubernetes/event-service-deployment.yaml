@@ -1,10 +1,69 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: event-service
+  name: event-service-blue
   namespace: production
   labels:
     app: event-service
+    version: blue
+spec:
+  replicas: 0
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: event-service
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: event-service
+        version: blue
+    spec:
+      containers:
+      - name: event-service
+        image: binukx/event-service:v1
+        ports:
+        - containerPort: 3001
+        env:
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef: { name: db-secret, key: host }
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef: { name: db-secret, key: port }
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef: { name: db-secret, key: database }
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef: { name: db-secret, key: username }
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef: { name: db-secret, key: password }
+        resources:
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "200m" }
+        livenessProbe:
+          httpGet: { path: /health, port: 3001 }
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet: { path: /health, port: 3001 }
+          initialDelaySeconds: 15
+          periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-service-green
+  namespace: production
+  labels:
+    app: event-service
+    version: green
 spec:
   replicas: 1
   strategy:
@@ -15,10 +74,12 @@ spec:
   selector:
     matchLabels:
       app: event-service
+      version: green
   template:
     metadata:
       labels:
         app: event-service
+        version: green
     spec:
       containers:
       - name: event-service
@@ -28,46 +89,28 @@ spec:
         env:
         - name: DB_HOST
           valueFrom:
-            secretKeyRef:
-              name: db-secret
-              key: host
+            secretKeyRef: { name: db-secret, key: host }
         - name: DB_PORT
           valueFrom:
-            secretKeyRef:
-              name: db-secret
-              key: port
+            secretKeyRef: { name: db-secret, key: port }
         - name: DB_NAME
           valueFrom:
-            secretKeyRef:
-              name: db-secret
-              key: database
+            secretKeyRef: { name: db-secret, key: database }
         - name: DB_USER
           valueFrom:
-            secretKeyRef:
-              name: db-secret
-              key: username
+            secretKeyRef: { name: db-secret, key: username }
         - name: DB_PASSWORD
           valueFrom:
-            secretKeyRef:
-              name: db-secret
-              key: password
+            secretKeyRef: { name: db-secret, key: password }
         resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "200m" }
         livenessProbe:
-          httpGet:
-            path: /health
-            port: 3001
+          httpGet: { path: /health, port: 3001 }
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
-          httpGet:
-            path: /health
-            port: 3001
+          httpGet: { path: /health, port: 3001 }
           initialDelaySeconds: 15
           periodSeconds: 5
 ---
@@ -79,6 +122,7 @@ metadata:
 spec:
   selector:
     app: event-service
+    version: green
   ports:
   - protocol: TCP
     port: 3001
@@ -94,7 +138,7 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: event-service
+    name: event-service-green
   minReplicas: 1
   maxReplicas: 5
   metrics:

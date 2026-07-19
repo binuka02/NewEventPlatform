@@ -1,10 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: registration-service
+  name: registration-service-blue
   namespace: production
   labels:
     app: registration-service
+    version: blue
 spec:
   replicas: 1
   strategy:
@@ -15,10 +16,12 @@ spec:
   selector:
     matchLabels:
       app: registration-service
+      version: blue
   template:
     metadata:
       labels:
         app: registration-service
+        version: blue
     spec:
       containers:
       - name: registration-service
@@ -28,29 +31,19 @@ spec:
         env:
         - name: DB_HOST
           valueFrom:
-            secretKeyRef:
-              name: db-secret
-              key: host
+            secretKeyRef: { name: db-secret, key: host }
         - name: DB_PORT
           valueFrom:
-            secretKeyRef:
-              name: db-secret
-              key: port
+            secretKeyRef: { name: db-secret, key: port }
         - name: DB_NAME
           valueFrom:
-            secretKeyRef:
-              name: db-secret
-              key: database
+            secretKeyRef: { name: db-secret, key: database }
         - name: DB_USER
           valueFrom:
-            secretKeyRef:
-              name: db-secret
-              key: username
+            secretKeyRef: { name: db-secret, key: username }
         - name: DB_PASSWORD
           valueFrom:
-            secretKeyRef:
-              name: db-secret
-              key: password
+            secretKeyRef: { name: db-secret, key: password }
         - name: EVENT_SERVICE_URL
           value: "http://event-service:3001"
         - name: LAMBDA_URL
@@ -60,22 +53,80 @@ spec:
               key: lambda-url
               optional: true
         resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "200m" }
         livenessProbe:
-          httpGet:
-            path: /health
-            port: 3003
+          httpGet: { path: /health, port: 3003 }
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
-          httpGet:
-            path: /health
-            port: 3003
+          httpGet: { path: /health, port: 3003 }
+          initialDelaySeconds: 15
+          periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registration-service-green
+  namespace: production
+  labels:
+    app: registration-service
+    version: green
+spec:
+  replicas: 0
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: registration-service
+      version: green
+  template:
+    metadata:
+      labels:
+        app: registration-service
+        version: green
+    spec:
+      containers:
+      - name: registration-service
+        image: binukx/registration-service:v1
+        ports:
+        - containerPort: 3003
+        env:
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef: { name: db-secret, key: host }
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef: { name: db-secret, key: port }
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef: { name: db-secret, key: database }
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef: { name: db-secret, key: username }
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef: { name: db-secret, key: password }
+        - name: EVENT_SERVICE_URL
+          value: "http://event-service:3001"
+        - name: LAMBDA_URL
+          valueFrom:
+            secretKeyRef:
+              name: aws-secret
+              key: lambda-url
+              optional: true
+        resources:
+          requests: { memory: "128Mi", cpu: "100m" }
+          limits: { memory: "256Mi", cpu: "200m" }
+        livenessProbe:
+          httpGet: { path: /health, port: 3003 }
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet: { path: /health, port: 3003 }
           initialDelaySeconds: 15
           periodSeconds: 5
 ---
@@ -87,6 +138,7 @@ metadata:
 spec:
   selector:
     app: registration-service
+    version: blue
   ports:
   - protocol: TCP
     port: 3003
@@ -102,7 +154,7 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: registration-service
+    name: registration-service-blue
   minReplicas: 1
   maxReplicas: 5
   metrics:
