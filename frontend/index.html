@@ -27,7 +27,9 @@ http://www.templatemo.com/tm-486-new-event
 </head>
 <body data-spy="scroll" data-offset="50" data-target=".navbar-collapse">
 
-<!-- Pre Loader -->
+<!-- =========================
+     PRE LOADER       
+============================== -->
 <div class="preloader">
 
 	<div class="sk-rotating-plane"></div>
@@ -35,7 +37,9 @@ http://www.templatemo.com/tm-486-new-event
 </div>
 
 
-<!-- Navigation -->
+<!-- =========================
+     NAVIGATION LINKS     
+============================== -->
 <div class="navbar navbar-fixed-top custom-navbar" role="navigation">
 	<div class="container">
 
@@ -52,7 +56,7 @@ http://www.templatemo.com/tm-486-new-event
 		<div class="collapse navbar-collapse">
 
 			<ul class="nav navbar-nav navbar-right">
-				<li><a href="#intro" class="smoothScroll">Viva Test</a></li>
+				<li><a href="#intro" class="smoothScroll">Intro</a></li>
 				<li><a href="#overview" class="smoothScroll">Overview</a></li>
 				<li><a href="#speakers" class="smoothScroll">Speakers</a></li>
 				<li><a href="#program" class="smoothScroll">Programs</a></li>
@@ -68,7 +72,9 @@ http://www.templatemo.com/tm-486-new-event
 </div>
 
 
-<!-- Intro -->
+<!-- =========================
+    INTRO SECTION   
+============================== -->
 <section id="intro" class="parallax-section">
 	<div class="container">
 		<div class="row">
@@ -86,7 +92,9 @@ http://www.templatemo.com/tm-486-new-event
 </section>
 
 
-<!-- Overview -->
+<!-- =========================
+    OVERVIEW SECTION   
+============================== -->
 <section id="overview" class="parallax-section">
 	<div class="container">
 		<div class="row">
@@ -106,7 +114,9 @@ http://www.templatemo.com/tm-486-new-event
 </section>
 
 
-<!--Detail -->
+<!-- =========================
+    DETAIL SECTION   
+============================== -->
 <section id="detail" class="parallax-section">
 	<div class="container">
 		<div class="row">
@@ -134,7 +144,9 @@ http://www.templatemo.com/tm-486-new-event
 </section>
 
 
-<!--Video-->
+<!-- =========================
+    VIDEO SECTION   
+============================== -->
 <section id="video" class="parallax-section">
 	<div class="container">
 		<div class="row">
@@ -155,7 +167,9 @@ http://www.templatemo.com/tm-486-new-event
 </section>
 
 
-<!--Speakers-->
+<!-- =========================
+    SPEAKERS SECTION   
+============================== -->
 <section id="speakers" class="parallax-section">
 	<div class="container">
 		<div class="row">
@@ -167,7 +181,8 @@ http://www.templatemo.com/tm-486-new-event
 				</div>
 			</div>
 
-			<!-- Testimonial Owl Carousel section -->
+			<!-- Testimonial Owl Carousel section
+			================================================== -->
 			<div id="owl-speakers" class="owl-carousel">
 
 				<div class="item wow fadeInUp col-md-3 col-sm-3" data-wow-delay="0.9s">
@@ -227,7 +242,9 @@ http://www.templatemo.com/tm-486-new-event
 </section>
 
 
-<!--Program -->
+<!-- =========================
+    PROGRAM SECTION   
+============================== -->
 <section id="program" class="parallax-section">
 	<div class="container">
 		<div class="row">
@@ -406,7 +423,9 @@ http://www.templatemo.com/tm-486-new-event
 </section>
 
 
-<!-- Register-->
+<!-- =========================
+   REGISTER SECTION   
+============================== -->
 <section id="register" class="parallax-section">
 	<div class="container">
 		<div class="row">
@@ -436,12 +455,15 @@ http://www.templatemo.com/tm-486-new-event
 </section>
 
 
-<!--FAQ -->
+<!-- =========================
+    FAQ SECTION   
+============================== -->
 <section id="faq" class="parallax-section">
 	<div class="container">
 		<div class="row">
 
-			<!-- Section title -->
+			<!-- Section title
+			================================================== -->
 			<div class="wow bounceIn col-md-offset-2 col-md-8 col-sm-offset-1 col-sm-10 text-center">
 				<div class="section-title">
 					<h2>Do you have Questions?</h2>
@@ -508,7 +530,9 @@ http://www.templatemo.com/tm-486-new-event
 </section>
 
 
-<!-- Venue -->
+<!-- =========================
+    VENUE SECTION   
+============================== -->
 <section id="venue" class="parallax-section">
 	<div class="container">
 		<div class="row">
@@ -527,7 +551,9 @@ http://www.templatemo.com/tm-486-new-event
 </section>
 
 
-<!-- Sponsors -->
+<!-- =========================
+    SPONSORS SECTION   
+============================== -->
 <section id="sponsors" class="parallax-section">
 	<div class="container">
 		<div class="row">
@@ -560,7 +586,9 @@ http://www.templatemo.com/tm-486-new-event
 </section>
 
 
-<!-- Contact -->
+<!-- =========================
+    CONTACT SECTION   
+============================== -->
 <section id="contact" class="parallax-section">
 	<div class="container">
 		<div class="row">
@@ -596,7 +624,9 @@ http://www.templatemo.com/tm-486-new-event
 </section>
 
 
-<!-- Footer -->
+<!-- =========================
+    FOOTER SECTION   
+============================== -->
 <footer>
 	<div class="container">
 		<div class="row">
@@ -624,7 +654,10 @@ http://www.templatemo.com/tm-486-new-event
 <!-- Back top -->
 <a href="#back-top" class="go-top"><i class="fa fa-angle-up"></i></a>
 
-<!-- Scrypts -->
+
+<!-- =========================
+     SCRIPTS   
+============================== -->
 <script src="js/jquery.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/jquery.parallax.js"></script>
@@ -633,182 +666,6 @@ http://www.templatemo.com/tm-486-new-event
 <script src="js/wow.min.js"></script>
 <script src="js/custom.js"></script>
 <script src="analytics.js"></script>
-
-<script>
-// Backend Integration
-
-const API_BASE = '';
-
-// Task 1: Load Events Dynamically
-async function loadEvents() {
-  try {
-    const response = await fetch(API_BASE + '/api/events');
-    const data = await response.json();
-    if (data.success && data.data.length > 0) {
-      const event = data.data[0];
-
-      // Update intro section
-      const introDate = document.querySelector('#intro h3');
-      const introTitle = document.querySelector('#intro h1');
-      if (introDate) introDate.textContent = new Date(event.event_date).toDateString() + ' — ' + event.venue;
-      if (introTitle) introTitle.textContent = event.title;
-
-      // Update detail section counters
-      const detailBoxes = document.querySelectorAll('#detail h3');
-      if (detailBoxes[0]) detailBoxes[0].textContent = event.capacity + ' Participants';
-      if (detailBoxes[1]) detailBoxes[1].textContent = event.seats_available + ' Seats Left';
-
-      // Store event_id for registration
-      window.currentEventId = event.event_id;
-
-      console.log('Events loaded successfully!');
-    }
-  } catch (err) {
-    console.error('Failed to load events:', err);
-  }
-}
-
-// Task 2: Load Programs Dynamically
-async function loadPrograms() {
-  try {
-    const response = await fetch(API_BASE + '/api/programs');
-    const data = await response.json();
-    if (data.success && data.data.length > 0) {
-      const programs = data.data;
-
-      // Group by day
-      const days = {};
-      programs.forEach(p => {
-        if (!days[p.day]) days[p.day] = [];
-        days[p.day].push(p);
-      });
-
-      const dayNames = ['', 'FIRST DAY', 'SECOND DAY', 'THIRD DAY'];
-      const tabIds = ['', 'fday', 'sday', 'tday'];
-
-      Object.keys(days).forEach(day => {
-        const tabPane = document.getElementById(tabIds[day]);
-        if (!tabPane) return;
-
-        // Clear existing content
-        tabPane.innerHTML = '';
-
-        days[day].forEach((program, index) => {
-          const divider = index > 0 ? '<div class="program-divider col-md-12 col-sm-12"></div>' : '';
-          tabPane.innerHTML += `
-            ${divider}
-            <div class="col-md-2 col-sm-2">
-              <img src="images/program-img${index + 1}.jpg" class="img-responsive" alt="program">
-            </div>
-            <div class="col-md-10 col-sm-10">
-              <h6>
-                <span><i class="fa fa-clock-o"></i> ${program.start_time}</span>
-                <span><i class="fa fa-tag"></i> ${program.track}</span>
-              </h6>
-              <h3>${program.session_name}</h3>
-              <h4>By ${program.speaker_name}</h4>
-              <p>Session from ${program.start_time} to ${program.end_time}. Join us for this exciting session on ${program.track}.</p>
-            </div>
-          `;
-        });
-      });
-
-      console.log('Programs loaded successfully!');
-    }
-  } catch (err) {
-    console.error('Failed to load programs:', err);
-  }
-}
-
-// Task 3: Registration Form
-async function handleRegistration(e) {
-  e.preventDefault();
-
-  const firstname = document.getElementById('firstname').value.trim();
-  const lastname = document.getElementById('lastname').value.trim();
-  const email = document.getElementById('email').value.trim();
-  const phone = document.getElementById('phone').value.trim();
-
-  if (!firstname || !email) {
-    showMessage('Please fill in all required fields!', 'error');
-    return;
-  }
-
-  const submitBtn = document.getElementById('submit');
-  submitBtn.value = 'REGISTERING...';
-  submitBtn.disabled = true;
-
-  try {
-    const response = await fetch(API_BASE + '/api/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event_id: window.currentEventId || 1,
-        name: firstname + ' ' + lastname,
-        email: email,
-        ticket_count: 1
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      showMessage('Registration successful! Welcome to the event!', 'success');
-      document.querySelector('#register form').reset();
-      // Reload events to update seats count
-      loadEvents();
-    } else {
-      showMessage(data.message || 'Registration failed. Please try again.', 'error');
-    }
-  } catch (err) {
-    showMessage('Connection error. Please try again.', 'error');
-    console.error('Registration error:', err);
-  } finally {
-    submitBtn.value = 'REGISTER';
-    submitBtn.disabled = false;
-  }
-}
-
-function showMessage(msg, type) {
-  // Remove existing message
-  const existing = document.getElementById('reg-message');
-  if (existing) existing.remove();
-
-  const div = document.createElement('div');
-  div.id = 'reg-message';
-  div.style.cssText = `
-    padding: 12px 20px;
-    margin-top: 10px;
-    border-radius: 4px;
-    font-weight: 500;
-    background: ${type === 'success' ? '#E1F5EE' : '#FCEBEB'};
-    color: ${type === 'success' ? '#0F6E56' : '#A32D2D'};
-    border: 1px solid ${type === 'success' ? '#5DCAA5' : '#E88'};
-  `;
-  div.textContent = msg;
-
-  const form = document.querySelector('#register form');
-  form.appendChild(div);
-
-  // Auto remove after 5 seconds
-  setTimeout(() => div.remove(), 5000);
-}
-
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-  // Load data from backend
-  loadEvents();
-  loadPrograms();
-
-  // Attach registration handler
-  const form = document.querySelector('#register form');
-  if (form) {
-    form.addEventListener('submit', handleRegistration);
-  }
-
-  console.log('Backend integration initialized!');
-});
-</script>
 
 </body>
 </html>
