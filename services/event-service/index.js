@@ -60,7 +60,7 @@ app.get("/events", async (req, res) => {
     const result = await pool.query(
       "SELECT * FROM events ORDER BY event_date ASC",
     );
-    res.json({ success: true, data: result.rows, demo: "viva-test" });
+    res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });

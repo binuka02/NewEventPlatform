@@ -1,5 +1,6 @@
 name: CI/CD Pipeline - New Event Platform
 
+# Runs on every push to main, and on PRs targeting main (PRs only run the build job)
 on:
   push:
     branches:
@@ -15,6 +16,8 @@ env:
 
 jobs:
   # JOB 1: Build and Push Docker Images
+  # Builds all 5 images, checks dependencies, scans them, pushes to Docker Hub.
+  # Runs on every push to main and on every PR.
   build:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
@@ -22,17 +25,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Needed so npm commands work in the next step
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
+      # Fails the build early if any lockfile could pull in a newer patched version
       - name: Check dependencies are up to date
         run: |
+          # go into each service folder and let npm update grab anything newer
           for svc in event-service program-service registration-service analytics-collector; do
             echo "Checking services/$svc..."
             (cd services/$svc && npm update)
           done
+          # if npm update actually changed a lockfile, that means it was stale before this run
           if ! git diff --exit-code -- '**/package-lock.json'; then
             echo ""
             echo "::error::One or more package-lock.json files are stale - newer patched versions are available."
@@ -47,9 +54,12 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # short commit hash - every image gets tagged with this so I always know which commit built it
       - name: Set image tag
         id: vars
         run: echo "TAG=$(echo $GITHUB_SHA | head -c7)" >> $GITHUB_OUTPUT
+
+      # build + push each service's image - independent steps, one failing doesn't block the others
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
@@ -97,7 +107,8 @@ jobs:
             ${{ env.DOCKERHUB_USERNAME }}/analytics-collector:latest
 
   
-      # Security Scan with Trivy
+      # Security Scan with Trivy - exit-code 1 means CRITICAL/HIGH findings actually fail the build,
+      # not just get logged. Each scan writes its own report file, uploaded as one artifact below.
 
       - name: Scan Frontend image with Trivy
         uses: aquasecurity/trivy-action@master
@@ -144,6 +155,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           output: 'trivy-analytics.txt'
 
+      # if: always() so reports still upload even if a scan above failed and stopped the job
       - name: Upload Trivy scan results
         uses: actions/upload-artifact@v4
         if: always()
@@ -153,6 +165,9 @@ jobs:
 
 
   # JOB 2: Blue-Green Deployment (all 5 services)
+  # Only runs after build succeeds, and only on an actual push to main (not on
+  # PRs - a PR should just prove the code builds and passes security scanning,
+  # it shouldn't touch the live cluster).
   deploy:
     name: Blue-Green Deployment
     runs-on: ubuntu-latest
@@ -161,6 +176,27 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # need the previous commit too, so paths-filter below has something to diff against
+
+      # figures out which service folders changed - each deploy step below only
+      # runs if its own service's files changed, so an unrelated fix doesn't
+      # trigger a pointless colour switch on every other service too
+      - name: Detect changed services       
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+            event:
+              - 'services/event-service/**'
+            program:
+              - 'services/program-service/**'
+            registration:
+              - 'services/registration-service/**'
+            analytics:
+              - 'services/analytics-collector/**'
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -169,6 +205,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # lets kubectl below actually talk to the EKS cluster
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
@@ -180,7 +217,9 @@ jobs:
       - name: Determine current active color (frontend)
         id: color
         run: |
+          # check frontend-service's selector to see which colour is live right now
           CURRENT=$(kubectl get service frontend-service -n production -o jsonpath='{.spec.selector.version}' 2>/dev/null || echo "blue")
+          # deploy target is always whichever colour ISN'T currently live
           if [ "$CURRENT" == "blue" ]; then
             echo "DEPLOY_COLOR=green" >> $GITHUB_OUTPUT
             echo "ACTIVE_COLOR=blue" >> $GITHUB_OUTPUT
@@ -191,38 +230,48 @@ jobs:
           echo "Current active: $CURRENT"
 
       - name: Deploy frontend to inactive color
+        if: steps.changes.outputs.frontend == 'true'
         run: |
           DEPLOY_COLOR=${{ steps.color.outputs.DEPLOY_COLOR }}
           TAG=${{ steps.vars.outputs.TAG }}
           echo "Deploying frontend to $DEPLOY_COLOR with tag $TAG"
 
+          # push the new image only to the colour that's NOT live yet
           kubectl set image deployment/frontend-$DEPLOY_COLOR \
             frontend=binukx/new-event-frontend:$TAG \
             -n production
 
+          # bring it up to 1 replica so it can actually start
           kubectl scale deployment frontend-$DEPLOY_COLOR --replicas=1 -n production
 
+          # wait here until it's genuinely healthy before touching any real traffic
           kubectl rollout status deployment/frontend-$DEPLOY_COLOR -n production --timeout=300s
 
       - name: Switch frontend traffic to new version
+        if: steps.changes.outputs.frontend == 'true'
         run: |
           DEPLOY_COLOR=${{ steps.color.outputs.DEPLOY_COLOR }}
           echo "Switching frontend traffic to $DEPLOY_COLOR"
 
+          # this one line is the actual switch - flips which colour real users hit
           kubectl patch service frontend-service -n production \
             -p "{\"spec\":{\"selector\":{\"app\":\"frontend\",\"version\":\"$DEPLOY_COLOR\"}}}"
 
           echo "Frontend traffic switched to $DEPLOY_COLOR successfully!"
 
       - name: Scale down old frontend version
+        if: steps.changes.outputs.frontend == 'true'
         run: |
           ACTIVE_COLOR=${{ steps.color.outputs.ACTIVE_COLOR }}
           echo "Scaling down old frontend $ACTIVE_COLOR deployment"
+          # scaled to 0, not deleted - stays ready as an instant rollback target
           kubectl scale deployment frontend-$ACTIVE_COLOR --replicas=0 -n production
 
       - name: Deploy event-service (Blue-Green)
+        if: steps.changes.outputs.event == 'true'
         run: |
           TAG=${{ steps.vars.outputs.TAG }}
+          # same live-colour check as frontend, just done per-service instead of relying on one shared value
           CURRENT=$(kubectl get service event-service -n production -o jsonpath='{.spec.selector.version}' 2>/dev/null || echo "blue")
           if [ "$CURRENT" == "blue" ]; then
             TARGET=green
@@ -233,15 +282,20 @@ jobs:
           fi
           echo "event-service: currently live = $CURRENT, deploying to $TARGET"
 
+          # deploy new image to the inactive colour, wait for it to be healthy
           kubectl set image deployment/event-service-$TARGET event-service=binukx/event-service:$TAG -n production
           kubectl scale deployment event-service-$TARGET --replicas=1 -n production
           kubectl rollout status deployment/event-service-$TARGET -n production --timeout=300s
 
+          # flip the switch
           kubectl patch service event-service -n production \
             -p "{\"spec\":{\"selector\":{\"app\":\"event-service\",\"version\":\"$TARGET\"}}}"
 
+          # retire the old colour
           kubectl scale deployment event-service-$OLD --replicas=0 -n production
 
+          # HPA can only point at one Deployment name, and that name changes colour every
+          # deploy - so delete the old HPA and recreate it pointed at whichever colour is live now
           kubectl delete hpa event-service-hpa -n production --ignore-not-found=true
           cat <<EOF | kubectl apply -f -
           apiVersion: autoscaling/v2
@@ -268,8 +322,10 @@ jobs:
           echo "event-service now live on $TARGET, HPA retargeted"
 
       - name: Deploy program-service (Blue-Green)
+        if: steps.changes.outputs.program == 'true'
         run: |
           TAG=${{ steps.vars.outputs.TAG }}
+          # same pattern as event-service above
           CURRENT=$(kubectl get service program-service -n production -o jsonpath='{.spec.selector.version}' 2>/dev/null || echo "blue")
           if [ "$CURRENT" == "blue" ]; then
             TARGET=green
@@ -289,6 +345,7 @@ jobs:
 
           kubectl scale deployment program-service-$OLD --replicas=0 -n production
 
+          # same delete+recreate HPA reasoning as event-service
           kubectl delete hpa program-service-hpa -n production --ignore-not-found=true
           cat <<EOF | kubectl apply -f -
           apiVersion: autoscaling/v2
@@ -315,8 +372,10 @@ jobs:
           echo "program-service now live on $TARGET, HPA retargeted"
 
       - name: Deploy registration-service (Blue-Green)
+        if: steps.changes.outputs.registration == 'true'
         run: |
           TAG=${{ steps.vars.outputs.TAG }}
+          # same pattern again
           CURRENT=$(kubectl get service registration-service -n production -o jsonpath='{.spec.selector.version}' 2>/dev/null || echo "blue")
           if [ "$CURRENT" == "blue" ]; then
             TARGET=green
@@ -362,8 +421,10 @@ jobs:
           echo "registration-service now live on $TARGET, HPA retargeted"
 
       - name: Deploy analytics-collector (Blue-Green)
+        if: steps.changes.outputs.analytics == 'true'
         run: |
           TAG=${{ steps.vars.outputs.TAG }}
+          # this one lives in the analytics namespace, not production - everything else is the same pattern
           CURRENT=$(kubectl get service analytics-collector-service -n analytics -o jsonpath='{.spec.selector.version}' 2>/dev/null || echo "blue")
           if [ "$CURRENT" == "blue" ]; then
             TARGET=green
@@ -408,6 +469,8 @@ jobs:
 
           echo "analytics-collector now live on $TARGET, HPA retargeted"
 
+      # final sanity check - dumps pods/services/HPAs so I can eyeball everything landed correctly.
+      # always runs, no matter what did or didn't change above.
       - name: Verify deployment
         run: |
           echo "=== All Pods ==="
