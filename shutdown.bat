@@ -1,16 +1,16 @@
 @echo off
 echo ==========================================
-echo   NEW EVENT PLATFORM - SHUTDOWN SCRIPT
+echo   New Event - Shutdown Script
 echo ==========================================
 echo.
 echo This will:
-echo   - DELETE EKS Nodegroup (workers-small)
-echo   - DELETE EKS Cluster
-echo   - DELETE CloudFormation stacks
-echo   - TERMINATE RDS Database
-echo   - DELETE RDS DB Subnet Group
-echo   - KEEP S3 Bucket untouched
-echo   - KEEP Lambda function untouched
+echo   - Delete EKS Nodegroup (workers-small)
+echo   - Delete EKS Cluster
+echo   - Delete CloudFormation stacks
+echo   - Terminate RDS Database
+echo   - Delete RDS DB Subnet Group
+echo   - Keep S3 Bucket untouched
+echo   - Kepp Lambda function untouched
 echo.
 echo Press Ctrl+C to cancel or any key to continue...
 pause > nul
@@ -18,10 +18,10 @@ echo.
 
 echo [1/6] Scaling down ClickHouse and cleaning up its PersistentVolumeClaim...
 kubectl scale deployment clickhouse --replicas=0 -n analytics >nul 2>&1
-echo Waiting 20 seconds for the ClickHouse pod to terminate and release its volume...
+echo Waiting for the ClickHouse pod to terminate and release its volume...
 timeout /t 20 /nobreak > nul
 kubectl delete pvc clickhouse-pvc -n analytics --ignore-not-found --timeout=30s >nul 2>&1
-echo Waiting 10 seconds for the EBS CSI Driver to deprovision the volume...
+echo Waiting for the EBS CSI Driver to deprovision the volume...
 timeout /t 10 /nobreak > nul
 echo PVC cleanup done!
 echo.
@@ -51,12 +51,9 @@ if %errorlevel% equ 0 (
     set /a CF_WAIT_COUNT+=1
     if %CF_WAIT_COUNT% geq 30 (
         echo WARNING: CloudFormation stack deletion is taking longer than 10 minutes.
-        echo Check the AWS Console under CloudFormation for a stuck resource
-        echo ^(often a security group still referenced by an ENI or Load Balancer^),
-        echo resolve it there, then continue running this script manually if needed.
         goto cf_done
     )
-    echo Still deleting CloudFormation stack... waiting 20 seconds... ^(attempt %CF_WAIT_COUNT%/30^)
+    echo Still deleting CloudFormation stack... waiting... ^(attempt %CF_WAIT_COUNT%/30^)
     timeout /t 20 /nobreak > nul
     goto wait_cf
 )
@@ -80,7 +77,7 @@ aws rds delete-db-subnet-group --db-subnet-group-name new-event-db-subnet-group 
 echo.
 
 echo ==========================================
-echo   FINAL STATUS CHECK
+echo   Final Status Check
 echo ==========================================
 echo.
 
@@ -107,30 +104,22 @@ if %errorlevel% neq 0 (
 echo.
 
 echo ==========================================
-echo   SHUTDOWN SUMMARY
+echo   Shutdown Summary
 echo ==========================================
 echo.
 echo   Deleted:
-echo   - EKS Cluster             = $0.00/day
-echo   - EKS Nodegroup (4xsmall) = $0.00/day
-echo   - CloudFormation Stacks   = $0.00/day
-echo   - RDS Database            = $0.00/day
-echo   - RDS DB Subnet Group     = $0.00 (no cost, but cleaned up for a fresh next run)
-echo   - EC2 Nodes               = $0.00/day
-echo   - ClickHouse EBS Volume   = $0.00/day (deleted via PVC before cluster teardown)
+echo   - EKS Cluster             
+echo   - EKS Nodegroup (4xsmall) 
+echo   - CloudFormation Stacks  
+echo   - RDS Database           
+echo   - RDS DB Subnet Group     
+echo   - EC2 Nodes               
+echo   - ClickHouse EBS Volume   
 echo.
 echo   Kept:
-echo   - S3 Bucket               = $0.00 (free tier)
-echo   - Lambda Function         = $0.00 (pay per use)
+echo   - S3 Bucket               
+echo   - Lambda Function        
 echo.
-echo   NOTE: If you have EBS volumes from BEFORE this fix was added, check
-echo   EC2 - Elastic Block Store - Volumes in the AWS Console for any
-echo   leftover "available" (unattached) volumes and delete them manually.
-echo.
-echo   TOTAL DAILY COST = ~$0.00/day
-echo.
-echo   Run startup.bat to recreate when ready.
-echo   (Takes approximately 40 minutes)
 echo ==========================================
 echo.
 echo Press any key to close this window...

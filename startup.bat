@@ -1,6 +1,6 @@
 @echo off
 echo ==========================================
-echo   new Event - Startup Script
+echo   New Event - Startup Script
 echo ==========================================
 echo.
 echo This will recreate:
@@ -24,7 +24,6 @@ aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-nodegroup-
 aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-nodegroup-workers-medium --region us-east-1 --no-paginate >nul 2>&1
 aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-nodegroup-workers --region us-east-1 --no-paginate >nul 2>&1
 aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-cluster --region us-east-1 --no-paginate >nul 2>&1
-echo Waiting 30 seconds for cleanup...
 timeout /t 30 /nobreak > nul
 echo Cleanup done!
 echo.
@@ -154,7 +153,6 @@ echo Done!
 echo.
  
 echo [13/13] Setting up ClickHouse and Analytics...
-echo Waiting 120 seconds for ClickHouse to start...
 timeout /t 120 /nobreak > nul
 echo.
 echo Creating ClickHouse table...
@@ -169,7 +167,7 @@ echo.
  
 echo Deploying Apache Superset with ClickHouse driver...
 kubectl apply -f kubernetes/superset-deployment.yaml >nul 2>&1
-echo Superset deployed! Waiting 60 seconds for init container...
+echo Superset deployed!
 timeout /t 60 /nobreak > nul
 echo.
 echo Setting up Superset admin user...
@@ -185,7 +183,7 @@ if %errorlevel% neq 0 (
         echo WARNING: superset db upgrade kept failing after 5 attempts - continuing anyway.
         goto db_upgrade_done
     )
-    echo db upgrade failed, waiting 15 seconds and retrying... ^(attempt %DB_UPGRADE_TRIES%/5^)
+    echo db upgrade failed, retrying... ^(attempt %DB_UPGRADE_TRIES%/5^)
     timeout /t 15 /nobreak > nul
     goto retry_db_upgrade
 )
@@ -194,13 +192,12 @@ echo Creating Superset admin user...
 kubectl exec -n analytics %SUPERSET_POD% -- superset fab create-admin --username admin --firstname Admin --lastname User --email admin@superset.com --password "NewEvent2026!"
 if %errorlevel% neq 0 (
     echo WARNING: create-admin reported an error - admin user may already exist, or db upgrade did not fully complete.
-    echo If Superset login fails, run this same command manually once ClickHouse/Superset are confirmed healthy.
 )
 kubectl exec -n analytics %SUPERSET_POD% -- superset init >nul 2>&1
-echo Superset ready! Login: admin / NewEvent2026!
+echo Superset ready!
 echo.
 echo ==========================================
-echo   VERIFYING EVERYTHING
+echo   Verification
 echo ==========================================
 echo.
 echo === Kubernetes Nodes ===
@@ -219,7 +216,7 @@ echo === Superset URL ===
 kubectl get svc superset -n analytics
 echo.
 echo ==========================================
-echo   STARTUP COMPLETE! Happy coding!
+echo   Startup Completed
 echo.
 echo   EKS Cluster  : new-event-cluster
 echo   Nodes        : 4 x t3.small
@@ -228,11 +225,6 @@ echo   S3 Bucket    : new-event-notifications-896328677531
 echo   Lambda URL   : https://fjpqigjzk4tbjt6jcwco35m5mu0xwxut.lambda-url.us-east-1.on.aws/
 echo   Region       : us-east-1
 echo.
-echo   Grafana login: admin / (run: kubectl get secret monitoring-grafana -n monitoring -o jsonpath="{.data.admin-password}" ^| base64 -d)
-echo.
-echo   NOTE: If ClickHouse pod still Pending, run:
-echo   kubectl rollout restart deployment/ebs-csi-controller -n kube-system
-echo   Then wait 2 mins and check: kubectl get pods -n analytics
 echo ==========================================
 echo.
 echo Press any key to close this window...
