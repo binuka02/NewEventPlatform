@@ -147,16 +147,14 @@ app.listen(PORT, async () => {
 });
 
 const server = app.listen(PORT, async () => {
-  console.log(`Event Service running on port ${PORT}`);
-  await initDB();
+  console.log(`Analytics Collector running on port ${PORT}`);
+  await initClickHouse();
 });
 
 process.on("SIGTERM", () => {
   console.log("SIGTERM received, shutting down gracefully");
   server.close(() => {
-    pool.end(() => {
-      console.log("DB pool closed, exiting");
-      process.exit(0);
-    });
+    console.log("Server closed, exiting");
+    process.exit(0);
   });
 });

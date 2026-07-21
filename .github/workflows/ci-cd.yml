@@ -27,6 +27,20 @@ jobs:
         with:
           node-version: '18'
 
+      - name: Check dependencies are up to date
+        run: |
+          for svc in event-service program-service registration-service analytics-collector; do
+            echo "Checking services/$svc..."
+            (cd services/$svc && npm update)
+          done
+          if ! git diff --exit-code -- '**/package-lock.json'; then
+            echo ""
+            echo "::error::One or more package-lock.json files are stale - newer patched versions are available."
+            echo "Run 'npm update' locally in the affected service folder, test it, then commit the updated lockfile."
+            exit 1
+          fi
+          echo "All dependencies are up to date."
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
