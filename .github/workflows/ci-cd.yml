@@ -9,6 +9,8 @@ on:
     branches:
       - main
 
+# Shared values used across both jobs - keeps the cluster name/region/Docker Hub
+# username in one place instead of repeated everywhere
 env:
   DOCKERHUB_USERNAME: binukx
   EKS_CLUSTER_NAME: new-event-cluster
@@ -22,6 +24,7 @@ jobs:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
     steps:
+      # grabs the actual repo code so the build steps below have something to build
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -48,6 +51,7 @@ jobs:
           fi
           echo "All dependencies are up to date."
 
+      # need to be logged in before any docker push below will work
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -110,6 +114,7 @@ jobs:
       # Security Scan with Trivy - exit-code 1 means CRITICAL/HIGH findings actually fail the build,
       # not just get logged. Each scan writes its own report file, uploaded as one artifact below.
 
+      # if this finds a CRITICAL or HIGH CVE, the whole job fails here - image never gets used
       - name: Scan Frontend image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -119,6 +124,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           output: 'trivy-frontend.txt'
 
+      # same check, this one's for the event-service image
       - name: Scan Event Service image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -128,6 +134,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           output: 'trivy-event.txt'
 
+      # same check, program-service image
       - name: Scan Program Service image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -137,6 +144,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           output: 'trivy-program.txt'
 
+      # same check, registration-service image
       - name: Scan Registration Service image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -146,6 +154,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
           output: 'trivy-registration.txt'
 
+      # same check, analytics-collector image - last one, then results get uploaded below
       - name: Scan Analytics Collector image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -198,6 +207,7 @@ jobs:
             analytics:
               - 'services/analytics-collector/**'
 
+      # logs in to AWS so the next steps (kubeconfig, kubectl) are actually allowed to do anything
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -210,6 +220,8 @@ jobs:
         run: |
           aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER_NAME }}
 
+      # same tag logic as the build job - has to be recalculated here since this
+      # is a separate job and doesn't share state with the build job automatically
       - name: Set image tag
         id: vars
         run: echo "TAG=$(echo $GITHUB_SHA | head -c7)" >> $GITHUB_OUTPUT

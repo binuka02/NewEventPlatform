@@ -13,6 +13,7 @@ const clickhouse = createClient({
   username: process.env.CLICKHOUSE_USER || "default",
   password: process.env.CLICKHOUSE_PASSWORD || "",
   database: process.env.CLICKHOUSE_DB || "analytics",
+  keep_alive: { enabled: false },
 });
 
 // Initialize ClickHouse database and table
