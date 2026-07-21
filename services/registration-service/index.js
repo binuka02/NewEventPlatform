@@ -159,3 +159,18 @@ app.listen(PORT, async () => {
   console.log(`Registration Service running on port ${PORT}`);
   await initDB();
 });
+
+const server = app.listen(PORT, async () => {
+  console.log(`Event Service running on port ${PORT}`);
+  await initDB();
+});
+
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down gracefully");
+  server.close(() => {
+    pool.end(() => {
+      console.log("DB pool closed, exiting");
+      process.exit(0);
+    });
+  });
+});

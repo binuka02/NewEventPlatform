@@ -14,9 +14,7 @@ env:
   AWS_REGION: us-east-1
 
 jobs:
-  # ============================================
   # JOB 1: Build and Push Docker Images
-  # ============================================
   build:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
@@ -84,9 +82,9 @@ jobs:
             ${{ env.DOCKERHUB_USERNAME }}/analytics-collector:${{ steps.vars.outputs.TAG }}
             ${{ env.DOCKERHUB_USERNAME }}/analytics-collector:latest
 
-      # ============================================
-      # SECURITY SCANNING WITH TRIVY
-      # ============================================
+  
+      # Security Scan with Trivy
+
       - name: Scan Frontend image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -139,9 +137,8 @@ jobs:
           name: trivy-security-reports
           path: trivy-*.txt
 
-  # ============================================
+
   # JOB 2: Blue-Green Deployment (all 5 services)
-  # ============================================
   deploy:
     name: Blue-Green Deployment
     runs-on: ubuntu-latest
