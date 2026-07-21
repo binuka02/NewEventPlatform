@@ -11,7 +11,7 @@ echo   - Kubernetes Namespaces and Secrets
 echo   - EBS CSI Driver + OIDC Provider
 echo   - All Services deployed automatically
 echo   - Prometheus + Grafana monitoring
-echo   - RDS Security Group fix
+echo   - RDS in same VPC as EKS (private access, no public exposure)
 echo   - Apache Superset (ClickHouse dashboard, in-cluster)
 echo.
 echo Press Ctrl+C to cancel or any key to continue...
@@ -19,6 +19,7 @@ pause > nul
 echo.
 
 echo [1/13] Cleaning up any leftover stacks...
+aws rds delete-db-subnet-group --db-subnet-group-name new-event-db-subnet-group --region us-east-1 --no-paginate >nul 2>&1
 aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-nodegroup-workers-small --region us-east-1 --no-paginate >nul 2>&1
 aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-nodegroup-workers-medium --region us-east-1 --no-paginate >nul 2>&1
 aws cloudformation delete-stack --stack-name eksctl-new-event-cluster-nodegroup-workers --region us-east-1 --no-paginate >nul 2>&1
@@ -71,21 +72,23 @@ aws iam update-assume-role-policy --role-name AmazonEKS_EBS_CSI_DriverRole --pol
 echo OIDC configured!
 echo.
  
-echo [7/13] Creating RDS PostgreSQL Database...
-aws rds create-db-instance --db-instance-identifier new-event-db --db-instance-class db.t4g.micro --engine postgres --master-username postgres --master-user-password NewEvent2026! --allocated-storage 20 --no-multi-az --db-name neweventdb --region us-east-1 --no-paginate --output text --query "DBInstance.DBInstanceStatus" >nul 2>&1
+echo [7/13] Creating RDS PostgreSQL Database (same VPC as EKS)...
+for /f %%i in ('aws eks describe-cluster --name new-event-cluster --region us-east-1 --query "cluster.resourcesVpcConfig.clusterSecurityGroupId" --output text --no-paginate') do set CLUSTER_SG=%%i
+echo Cluster Security Group: %CLUSTER_SG%
+aws rds create-db-subnet-group --db-subnet-group-name new-event-db-subnet-group --db-subnet-group-description "RDS subnet group in the EKS VPC" --subnet-ids %SUBNET1% %SUBNET2% --region us-east-1 --no-paginate >nul 2>&1
+echo DB subnet group created (using EKS's own subnets)!
+aws rds create-db-instance --db-instance-identifier new-event-db --db-instance-class db.t4g.micro --engine postgres --master-username postgres --master-user-password NewEvent2026! --allocated-storage 20 --no-multi-az --db-name neweventdb --db-subnet-group-name new-event-db-subnet-group --region us-east-1 --no-paginate --output text --query "DBInstance.DBInstanceStatus" >nul 2>&1
 echo RDS creation started...
 echo Waiting for RDS to be available
 aws rds wait db-instance-available --db-instance-identifier new-event-db --region us-east-1
 echo RDS is ready!
 echo.
  
-echo [8/13] Fixing RDS Security Group to allow EKS connections...
+echo [8/13] Restricting RDS access to the EKS cluster only...
 for /f %%i in ('aws rds describe-db-instances --db-instance-identifier new-event-db --region us-east-1 --query "DBInstances[0].VpcSecurityGroups[0].VpcSecurityGroupId" --output text --no-paginate') do set RDS_SG=%%i
 echo RDS Security Group: %RDS_SG%
-aws ec2 authorize-security-group-ingress --group-id %RDS_SG% --protocol tcp --port 5432 --cidr 0.0.0.0/0 --region us-east-1 --no-paginate >nul 2>&1
-echo RDS port 5432 opened!
-aws rds modify-db-instance --db-instance-identifier new-event-db --publicly-accessible --apply-immediately --region us-east-1 --no-paginate >nul 2>&1
-echo RDS is now publicly accessible!
+aws ec2 authorize-security-group-ingress --group-id %RDS_SG% --protocol tcp --port 5432 --source-group %CLUSTER_SG% --region us-east-1 --no-paginate >nul 2>&1
+echo RDS port 5432 opened ONLY to the EKS cluster security group - no public internet access!
 echo.
  
 echo [9/13] Creating Namespaces, Secrets and EBS CSI Addon...
@@ -172,13 +175,32 @@ echo.
 echo Setting up Superset admin user...
 for /f %%i in ('kubectl get pod -n analytics -l app=superset -o jsonpath^={.items[0].metadata.name}') do set SUPERSET_POD=%%i
 echo Superset pod: %SUPERSET_POD%
-kubectl exec -n analytics %SUPERSET_POD% -- superset db upgrade >nul 2>&1
-kubectl exec -n analytics %SUPERSET_POD% -- superset fab create-admin --username admin --firstname Admin --lastname User --email admin@superset.com --password NewEvent2026! >nul 2>&1
+echo Running Superset DB migrations (retrying until they succeed)...
+set /a DB_UPGRADE_TRIES=0
+:retry_db_upgrade
+kubectl exec -n analytics %SUPERSET_POD% -- superset db upgrade
+if %errorlevel% neq 0 (
+    set /a DB_UPGRADE_TRIES+=1
+    if %DB_UPGRADE_TRIES% geq 5 (
+        echo WARNING: superset db upgrade kept failing after 5 attempts - continuing anyway.
+        goto db_upgrade_done
+    )
+    echo db upgrade failed, waiting 15 seconds and retrying... ^(attempt %DB_UPGRADE_TRIES%/5^)
+    timeout /t 15 /nobreak > nul
+    goto retry_db_upgrade
+)
+:db_upgrade_done
+echo Creating Superset admin user...
+kubectl exec -n analytics %SUPERSET_POD% -- superset fab create-admin --username admin --firstname Admin --lastname User --email admin@superset.com --password "NewEvent2026!"
+if %errorlevel% neq 0 (
+    echo WARNING: create-admin reported an error - admin user may already exist, or db upgrade did not fully complete.
+    echo If Superset login fails, run this same command manually once ClickHouse/Superset are confirmed healthy.
+)
 kubectl exec -n analytics %SUPERSET_POD% -- superset init >nul 2>&1
 echo Superset ready! Login: admin / NewEvent2026!
 echo.
 echo ==========================================
-echo   Verification
+echo   VERIFYING EVERYTHING
 echo ==========================================
 echo.
 echo === Kubernetes Nodes ===
@@ -197,7 +219,7 @@ echo === Superset URL ===
 kubectl get svc superset -n analytics
 echo.
 echo ==========================================
-echo   Startup Complete!
+echo   STARTUP COMPLETE! Happy coding!
 echo.
 echo   EKS Cluster  : new-event-cluster
 echo   Nodes        : 4 x t3.small
@@ -206,6 +228,11 @@ echo   S3 Bucket    : new-event-notifications-896328677531
 echo   Lambda URL   : https://fjpqigjzk4tbjt6jcwco35m5mu0xwxut.lambda-url.us-east-1.on.aws/
 echo   Region       : us-east-1
 echo.
+echo   Grafana login: admin / (run: kubectl get secret monitoring-grafana -n monitoring -o jsonpath="{.data.admin-password}" ^| base64 -d)
+echo.
+echo   NOTE: If ClickHouse pod still Pending, run:
+echo   kubectl rollout restart deployment/ebs-csi-controller -n kube-system
+echo   Then wait 2 mins and check: kubectl get pods -n analytics
 echo ==========================================
 echo.
 echo Press any key to close this window...
