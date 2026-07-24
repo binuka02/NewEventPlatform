@@ -55,12 +55,14 @@ async function initDB() {
 // ============================================
 
 // GET /events - List all events
+// Includes a "version" marker so a blue-green switch is provable via the API
+// response, not just by checking which colour the Service selector points to
 app.get("/events", async (req, res) => {
   try {
     const result = await pool.query(
       "SELECT * FROM events ORDER BY event_date ASC",
     );
-    res.json({ success: true, data: result.rows });
+    res.json({ success: true, version: "blue-green-test", data: result.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });
@@ -125,17 +127,12 @@ app.get("/health", (req, res) => {
   res.json({
     status: "healthy",
     service: "event-service",
-    version: "bluegreen-test",
+    version: "blue-green-test",
   });
 });
 
 // Start server
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, async () => {
-  console.log(`Event Service running on port ${PORT}`);
-  await initDB();
-});
-
 const server = app.listen(PORT, async () => {
   console.log(`Event Service running on port ${PORT}`);
   await initDB();
