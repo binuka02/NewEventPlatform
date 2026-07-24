@@ -42,13 +42,18 @@ document.addEventListener("DOMContentLoaded", function () {
 // EVENT 2: Section Scroll
 // Tracks which sections users actually reach
 // Useful to know if users scroll past the fold
+//
+// FIXED: original IDs (tm-section-1..5) did not exist
+// in the actual template. Updated to match the real
+// section IDs used in index.html.
 // ============================================
 const sections = [
-  { id: "tm-section-1", name: "hero" },
-  { id: "tm-section-2", name: "videos" },
-  { id: "tm-section-3", name: "speakers" },
-  { id: "tm-section-4", name: "programs" },
-  { id: "tm-section-5", name: "register" },
+  { id: "intro", name: "hero" },
+  { id: "overview", name: "overview" },
+  { id: "video", name: "videos" },
+  { id: "speakers", name: "speakers" },
+  { id: "program", name: "programs" },
+  { id: "register", name: "register" },
 ];
 
 const observedSections = new Set();
@@ -83,16 +88,25 @@ document.addEventListener("DOMContentLoaded", function () {
 // ============================================
 // EVENT 3: Speaker Card Click
 // Tracks which speakers generate most interest
+//
+// FIXED: original selector (.tm-speaker-item, .col-md-6 figure)
+// did not match the real markup. Speakers live inside the
+// Owl Carousel as ".item" elements with an <h3> name and
+// <h6> role inside ".speakers-wrapper".
+//
+// NOTE: Owl Carousel can clone/rebuild slide DOM nodes after
+// initialization. If clicks stop firing after the carousel
+// finishes its own setup, move this listener-attachment logic
+// into Owl Carousel's "initialized" event callback instead of
+// plain DOMContentLoaded.
 // ============================================
 document.addEventListener("DOMContentLoaded", function () {
-  const speakerCards = document.querySelectorAll(
-    ".tm-speaker-item, .col-md-6 figure",
-  );
+  const speakerCards = document.querySelectorAll("#owl-speakers .item");
   speakerCards.forEach((card, index) => {
     card.style.cursor = "pointer";
     card.addEventListener("click", function () {
       const speakerName =
-        card.querySelector("h4, figcaption")?.textContent?.trim() ||
+        card.querySelector("h3")?.textContent?.trim() ||
         "Speaker " + (index + 1);
       trackEvent("speaker_click", {
         speaker_name: speakerName,
@@ -105,14 +119,20 @@ document.addEventListener("DOMContentLoaded", function () {
 // ============================================
 // EVENT 4: Program Track View
 // Tracks which program tracks users engage with
+//
+// FIXED: original selector (.tm-program-item, table tr)
+// did not match the real markup — there is no <table> at all.
+// Each program entry is a ".col-md-10.col-sm-10" block
+// (inside .tab-content) containing an <h3> title.
 // ============================================
 document.addEventListener("DOMContentLoaded", function () {
-  const programItems = document.querySelectorAll(".tm-program-item, table tr");
+  const programItems = document.querySelectorAll(
+    ".tab-content .col-md-10.col-sm-10",
+  );
   programItems.forEach((item, index) => {
     item.addEventListener("mouseenter", function () {
       const trackName =
-        item.querySelector("td, h5")?.textContent?.trim() ||
-        "Track " + (index + 1);
+        item.querySelector("h3")?.textContent?.trim() || "Track " + (index + 1);
       trackEvent("program_track_view", {
         track_name: trackName,
         track_index: index + 1,
@@ -127,15 +147,11 @@ document.addEventListener("DOMContentLoaded", function () {
 // Useful to measure conversion rate
 // ============================================
 document.addEventListener("DOMContentLoaded", function () {
-  const registerForm = document.querySelector("form, #tm-section-5 form");
+  const registerForm = document.querySelector("#register form");
   if (registerForm) {
     registerForm.addEventListener("submit", function (e) {
-      const nameField = registerForm.querySelector(
-        'input[name="name"], input[type="text"]',
-      );
-      const emailField = registerForm.querySelector(
-        'input[name="email"], input[type="email"]',
-      );
+      const nameField = registerForm.querySelector('input[name="firstname"]');
+      const emailField = registerForm.querySelector('input[name="email"]');
       trackEvent("registration_attempt", {
         has_name: nameField ? nameField.value.length > 0 : false,
         has_email: emailField ? emailField.value.length > 0 : false,
