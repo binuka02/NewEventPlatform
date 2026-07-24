@@ -122,7 +122,11 @@ app.put("/events/:id/seats", async (req, res) => {
 
 // Health check endpoint (used by Kubernetes)
 app.get("/health", (req, res) => {
-  res.json({ status: "healthy", service: "event-service" });
+  res.json({
+    status: "healthy",
+    service: "event-service",
+    version: "blue-green-test",
+  });
 });
 
 // Start server
