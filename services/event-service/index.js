@@ -125,7 +125,7 @@ app.get("/health", (req, res) => {
   res.json({
     status: "healthy",
     service: "event-service",
-    version: "blue-green-test",
+    version: "bluegreen-test",
   });
 });
 
