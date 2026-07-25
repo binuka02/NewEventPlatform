@@ -64,7 +64,7 @@ app.get("/events", async (req, res) => {
     );
     res.json({
       success: true,
-      version: "blue-green-testing",
+      version: "blue-green-test",
       data: result.rows,
     });
   } catch (err) {
